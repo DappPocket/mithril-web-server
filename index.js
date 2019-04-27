@@ -1,10 +1,14 @@
 const express = require('express')
 const bodyParser = require('body-parser')
+const mongoose = require('mongoose')
 const { promisify } = require('util')
 const OAuth2Server = require('oauth2-server')
 const Request = OAuth2Server.Request
 const Response = OAuth2Server.Response;
 const MithVaultSDK = require('./mith-vault-sdk.min.js')
+const models = require('./model')
+const userModel = require('./mongo/model/user');
+
 
 
 const clientId = 'f435ce9da82d9960846192adb99d5a38'
@@ -22,6 +26,17 @@ const app = express()
 app.use(bodyParser.json())
 
 // add mongo connect
+var mongoUri = 'mongodb://localhost/dapp'
+
+mongoose.connect(mongoUri, {
+	useCreateIndex: true,
+	useNewUrlParser: true
+}, function(err, res) {
+	if (err) {
+		return console.error('Error connecting to "%s":', mongoUri, err);
+	}
+	console.log('Connected successfully to "%s"', mongoUri);
+});
 
 app.oauth = new OAuth2Server({
 		model: require('./model.js'),
@@ -29,13 +44,10 @@ app.oauth = new OAuth2Server({
 		allowBearerTokensInQueryString: true
 });
 
-
-app.all('/oauth/token', obtainToken);
-app.all('/oauth/token2', obtainToken2);
-
-app.get('/', authenticateRequest, function(req, res) {
-
-	res.send('Congratulations, you are in a secret area!');
+app.all('/oauth/grant', obtainGrantCode);
+app.post('/oauth/token', obtainToken);
+app.get('/', function(req, res) {
+	res.send('hello world');
 });
 
 const startServer = async () => {
@@ -46,38 +58,47 @@ const startServer = async () => {
 
 startServer()
 
-function obtainToken2(req, res) {
-	grantCode = 'f291d5b57884db565135c677191934ac2a2c9d58d4b7a46e65fcb4e28f51ffb5e60a246010cd848e5692858ece3bcc5708e7a3bacff8ca02b4c3d2ffc5c6af29&state=9055eebc-aacf-46c6-b68a-1a4b984b7f08'
-	grantCode = 'df166342407c70420bc9ae010f8a18edd67520bdb4d38d07a0d9b5890864e17e70412c46e63a4bded2d34222b4c15fbc75f4adf81acbde3af7187f6e965317c4&state=5223903a-7532-4486-9252-9a9abc6ed54e'
-	state = '5223903a-7532-4486-9252-9a9abc6ed54'
+function obtainToken(req, res) {
+	console.log(req.body);
+	
+	var grantCode = req.body.grantCode;
+	var state = req.body.state;
+	var address = req.body.address;
 	const sdk = new MithVaultSDK({ clientId, clientSecret, miningKey })
 	sdk.getAccessToken({ grantCode, state }).then(data => {
 		console.log(data)
-	}).catch(error => {
-		console.log(error)
+		models.getUser(address)
+		.then(u => {
+			if (!u) {
+				user = new userModel({
+					username: address,
+					accessTokenMith: data.token
+				});
+				user.save()
+			} else {
+				u.accessTokenMith = data.token
+				user.save()
+				
+			}
+			
+		})
+		res.json({
+			errorCode:0,
+			token: data.token
+		});
+	}).catch(err => {
+		res.status(err.code || 500).json(err);
 	})
 }
-function obtainToken(req, res) {
+
+
+function obtainGrantCode(req, res) {
 	const sdk = new MithVaultSDK({ clientId, clientSecret, miningKey })
 	const uri = sdk.getBindURI()
 
 	res.json({
 		errorCode:0,
-		message: uri
+		uri: uri
 	});
 }
 
-function authenticateRequest(req, res, next) {
-
-	var request = new Request(req);
-	var response = new Response(res);
-
-	return app.oauth.authenticate(request, response)
-		.then(function(token) {
-
-			next();
-		}).catch(function(err) {
-
-			res.status(err.code || 500).json(err);
-		});
-}
