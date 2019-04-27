@@ -49,6 +49,7 @@ app.post('/oauth/token', obtainToken);
 app.get('/', function(req, res) {
 	res.send('hello world');
 });
+app.get('/users/:id', getUser);
 
 const startServer = async () => {
 	  const port = process.env.SERVER_PORT || 8080
@@ -102,3 +103,14 @@ function obtainGrantCode(req, res) {
 	});
 }
 
+function getUser(req, res) {
+	let id = req.params.id;
+	models.getUser(id)
+	.then(u => {
+		if (!u) {
+			res.status(400).json({msg:"user not found"})
+		} else {
+			res.json(u);
+		}
+	})
+}
