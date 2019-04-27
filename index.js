@@ -44,12 +44,11 @@ app.oauth = new OAuth2Server({
 		allowBearerTokensInQueryString: true
 });
 
-app.all('/oauth/grant', obtainGrantCode);
+app.all('/oauth/grant/:id', obtainGrantCode);
 app.post('/oauth/token', obtainToken);
 app.get('/', function(req, res) {
 	res.send('hello world');
 });
-app.get('/users/:id', getUser);
 
 const startServer = async () => {
 	  const port = process.env.SERVER_PORT || 8080
@@ -78,13 +77,10 @@ function obtainToken(req, res) {
 				user.save()
 			} else {
 				u.accessTokenMith = data.token
-				user.save()
-				
+				u.save()
 			}
-			
 		})
 		res.json({
-			errorCode:0,
 			token: data.token
 		});
 	}).catch(err => {
@@ -94,23 +90,23 @@ function obtainToken(req, res) {
 
 
 function obtainGrantCode(req, res) {
-	const sdk = new MithVaultSDK({ clientId, clientSecret, miningKey })
-	const uri = sdk.getBindURI()
-
-	res.json({
-		errorCode:0,
-		uri: uri
-	});
-}
-
-function getUser(req, res) {
 	let id = req.params.id;
 	models.getUser(id)
 	.then(u => {
-		if (!u) {
-			res.status(400).json({msg:"user not found"})
-		} else {
-			res.json(u);
-		}
+		if (u) {
+			res.json({
+				uri: "",
+				token: u.accessTokenMith
+			}).send();
+		} 
+		const sdk = new MithVaultSDK({ clientId, clientSecret, miningKey })
+		const uri = sdk.getBindURI()
+		res.json({
+			uri: uri,
+			token: ""
+		});
+
 	})
+
 }
+
